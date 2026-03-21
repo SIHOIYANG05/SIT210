@@ -1,0 +1,28 @@
+const int buttonPin = 2;
+const int porchLight = 9;
+const int hallwayLight = 10;
+
+void setup() {
+  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(porchLight, OUTPUT);
+  pinMode(hallwayLight, OUTPUT);
+}
+
+void loop() {
+  if (digitalRead(buttonPin) == LOW) {
+    turnOnLights();
+    
+  }
+}
+
+void turnOnLights() {
+  digitalWrite(porchLight, HIGH);
+  digitalWrite(hallwayLight, HIGH);
+
+  delay(30000);
+  digitalWrite(porchLight, LOW);
+
+  delay(30000);
+  digitalWrite(hallwayLight, LOW);
+}
+
