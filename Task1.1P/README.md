@@ -1,1 +1,5 @@
-
+Simulate a smart home feature where lights automatically turn on when a switch is activated, when the user activate the switch, both the porch light and hallway light turn on. The porch light remains on for 30 seconds, while the hallway light stays on for 60 seconds to make sure safe entry into the house.
+I defined  2 ,9 and 10 refer to buttonPin, porchLight and hallwayLigh can help me understand easier for each one where I connected in the Arduino board .
+The setup function runs once at the start of the program for only one time. It is for configuring the pin modes. The LED pins are set as OUTPUT to allow the Arduino to control the lights, the switch pin is set as INPUT_PULLUP let the pin as input and actuvate the internal resistor so I dont nee external resistor.
+The loop function runs continuously,  it check the state of the switch using digitalRead(), when the switch is activated, it calls the turnOnLights() function.
+It turns both lights on at the same time, then uses delays to control how long each light remains on. The porch light is turned off after 30 seconds, while the hallway light remains on for a total of 60 seconds
