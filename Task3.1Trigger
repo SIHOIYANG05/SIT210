@@ -1,1 +1,102 @@
+#include <Wire.h>
+#include <BH1750.h>
+#include <WiFiNINA.h>
+#include "arduino_secrets.h"
 
+#define IFTTT_HOST "maker.ifttt.com"
+#define IFTTT_PORT 443
+
+char ssid[] = SECRET_SSID;
+char pass[] = SECRET_PASS;
+
+String iftttKey = "cW42u-n4bB1tlwlXuDL-3B";
+
+BH1750 lightMeter = BH1750();
+WiFiSSLClient client;
+
+float lightThreshold = 300.0;
+bool sunlightDetected = false;
+
+void setup()
+{
+  Serial.begin(9600);
+  while (!Serial);
+
+  Wire.begin();
+  lightMeter.begin();
+
+  connectWiFi();
+
+  Serial.println("System started.");
+}
+
+void loop()
+{
+  float lux = lightMeter.getLightIntensity();
+
+  Serial.print("Light: ");
+  Serial.print(lux);
+  Serial.println(" lux");
+
+  if (lux > lightThreshold && sunlightDetected == false)
+  {
+    sunlightDetected = true;
+    Serial.println("Sunlight detected.");
+    sendIFTTT("sunlight_on", lux);
+  }
+
+  if (lux <= lightThreshold && sunlightDetected == true)
+  {
+    sunlightDetected = false;
+    Serial.println("Sunlight stopped.");
+    sendIFTTT("sunlight_off", lux);
+  }
+
+  delay(5000);
+}
+
+void connectWiFi()
+{
+  Serial.print("Connecting to WiFi");
+
+  while (WiFi.begin(ssid, pass) != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(3000);
+  }
+
+  Serial.println();
+  Serial.println("WiFi connected");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void sendIFTTT(String eventName, float lux)
+{
+  String url = "/trigger/" + eventName + "/with/key/" + iftttKey;
+  String data = "value1=" + String(lux, 2);
+
+  Serial.print("Sending event: ");
+  Serial.println(eventName);
+
+  if (client.connect(IFTTT_HOST, IFTTT_PORT))
+  {
+    client.println("POST " + url + " HTTP/1.1");
+    client.println("Host: maker.ifttt.com");
+    client.println("Content-Type: application/x-www-form-urlencoded");
+    client.print("Content-Length: ");
+    client.println(data.length());
+    client.println("Connection: close");
+    client.println();
+    client.println(data);
+
+    Serial.println("IFTTT sent");
+  }
+  else
+  {
+    Serial.println("Failed to connect to IFTTT");
+  }
+
+  delay(1000);
+  client.stop();
+}
