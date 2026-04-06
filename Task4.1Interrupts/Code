@@ -1,0 +1,94 @@
+#include <Wire.h>
+#include <BH1750.h>
+
+BH1750 lightMeter;
+
+const int pirPin = 11;
+const int switchPin = 7;
+const int led1 = 5;
+const int led2 = 6;
+
+volatile bool motionDetected = false;
+
+unsigned long lightOnTime = 0;
+const unsigned long onDuration = 5000;  
+bool lightsAreOn = false;
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(pirPin, INPUT);
+  pinMode(switchPin, INPUT_PULLUP);
+  pinMode(led1, OUTPUT);
+  pinMode(led2, OUTPUT);
+
+  Wire.begin();
+  lightMeter.begin();
+
+  attachInterrupt(digitalPinToInterrupt(pirPin), motionISR, RISING);
+
+  Serial.println("System started...");
+}
+
+void loop() {
+  float lux = lightMeter.readLightLevel();
+  int switchState = digitalRead(switchPin);
+
+  Serial.print("Light Level: ");
+  Serial.print(lux);
+  Serial.println(" lux");
+
+  Serial.print("Switch State: ");
+  Serial.println(switchState);
+
+  if (switchState == LOW) {
+    turnOnLights();
+    Serial.println("EVENT: Switch ON (Manual Override)");
+  }
+  else {
+    if (motionDetected) {
+      motionDetected = false;
+      Serial.println("EVENT: Motion detected!");
+
+      if (lux < 50) {
+        turnOnLights();
+        lightOnTime = millis();
+        lightsAreOn = true;
+        Serial.println("Condition: Dark -> Lights ON for 5 seconds");
+      } else {
+        turnOffLights();
+        lightsAreOn = false;
+        Serial.println("Condition: Bright -> Lights OFF");
+      }
+    }
+
+    if (lightsAreOn && millis() - lightOnTime >= onDuration) {
+      turnOffLights();
+      lightsAreOn = false;
+      Serial.println("Timer expired -> Lights OFF");
+    }
+
+    if (!lightsAreOn && switchState != LOW) {
+      digitalWrite(led1, LOW);
+      digitalWrite(led2, LOW);
+    }
+  }
+
+  delay(200);
+}
+
+void motionISR() {
+  motionDetected = true;
+}
+
+void turnOnLights() {
+  digitalWrite(led1, HIGH);
+  digitalWrite(led2, HIGH);
+  Serial.println("LED1 & LED2 = ON");
+}
+
+void turnOffLights() {
+  digitalWrite(led1, LOW);
+  digitalWrite(led2, LOW);
+  Serial.println("LED1 & LED2 = OFF");
+}
