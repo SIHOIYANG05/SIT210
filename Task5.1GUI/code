@@ -1,0 +1,43 @@
+import tkinter as tk
+import RPi.GPIO as GPIO
+
+GPIO.setmode(GPIO.BCM)
+
+living = 17
+bathroom = 27
+closet = 22
+
+GPIO.setup(living, GPIO.OUT)
+GPIO.setup(bathroom, GPIO.OUT)
+GPIO.setup(closet, GPIO.OUT)
+
+def select_room():
+    GPIO.output(living, False)
+    GPIO.output(bathroom, False)
+    GPIO.output(closet, False)
+
+    if choice.get() == 1:
+        GPIO.output(living, True)
+    elif choice.get() == 2:
+        GPIO.output(bathroom, True)
+    elif choice.get() == 3:
+        GPIO.output(closet, True)
+
+def exit_program():
+    GPIO.cleanup()
+    root.destroy()
+
+root = tk.Tk()
+root.title("Smart Light Control")
+
+choice = tk.IntVar()
+
+tk.Label(root, text="Select Room").pack()
+
+tk.Radiobutton(root, text="Living Room", variable=choice, value=1, command=select_room).pack()
+tk.Radiobutton(root, text="Bathroom", variable=choice, value=2, command=select_room).pack()
+tk.Radiobutton(root, text="Closet", variable=choice, value=3, command=select_room).pack()
+
+tk.Button(root, text="Exit", command=exit_program).pack()
+
+root.mainloop()
