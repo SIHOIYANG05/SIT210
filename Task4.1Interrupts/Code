@@ -6,13 +6,16 @@ BH1750 lightMeter;
 const int pirPin = 11;
 const int switchPin = 7;
 const int led1 = 5;
-const int led2 = 6;
+const int led2 = 8;
 
 volatile bool motionDetected = false;
+volatile bool switchTriggered = false;
+
+bool manualMode = false;
+bool lightsAreOn = false;
 
 unsigned long lightOnTime = 0;
-const unsigned long onDuration = 5000;  
-bool lightsAreOn = false;
+const unsigned long onDuration = 5000;
 
 void setup() {
   Serial.begin(9600);
@@ -26,6 +29,7 @@ void setup() {
   lightMeter.begin();
 
   attachInterrupt(digitalPinToInterrupt(pirPin), motionISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(switchPin), switchISR, CHANGE);
 
   Serial.println("System started...");
 }
@@ -34,61 +38,68 @@ void loop() {
   float lux = lightMeter.readLightLevel();
   int switchState = digitalRead(switchPin);
 
-  Serial.print("Light Level: ");
+  Serial.print("Lux: ");
   Serial.print(lux);
-  Serial.println(" lux");
-
-  Serial.print("Switch State: ");
-  Serial.println(switchState);
+  Serial.print(" | Switch: ");
+  Serial.print(switchState);
+  Serial.print(" | switchTriggered: ");
+  Serial.println(switchTriggered);
 
   if (switchState == LOW) {
+    manualMode = true;
+    lightsAreOn = true;
     turnOnLights();
-    Serial.println("EVENT: Switch ON (Manual Override)");
+    Serial.println("Manual switch ON -> Lights ON");
   }
-  else {
-    if (motionDetected) {
-      motionDetected = false;
-      Serial.println("EVENT: Motion detected!");
 
-      if (lux < 50) {
-        turnOnLights();
-        lightOnTime = millis();
-        lightsAreOn = true;
-        Serial.println("Condition: Dark -> Lights ON for 5 seconds");
-      } else {
-        turnOffLights();
-        lightsAreOn = false;
-        Serial.println("Condition: Bright -> Lights OFF");
-      }
-    }
+  if (switchState == HIGH && manualMode) {
+    manualMode = false;
+    lightsAreOn = false;
+    turnOffLights();
+    Serial.println("Manual switch OFF -> Lights OFF");
+  }
 
-    if (lightsAreOn && millis() - lightOnTime >= onDuration) {
-      turnOffLights();
-      lightsAreOn = false;
-      Serial.println("Timer expired -> Lights OFF");
-    }
+  if (motionDetected) {
+    motionDetected = false;
+    Serial.println(">>> INTERRUPT: Motion detected");
 
-    if (!lightsAreOn && switchState != LOW) {
-      digitalWrite(led1, LOW);
-      digitalWrite(led2, LOW);
+    if (!manualMode && lux < 50) {
+      turnOnLights();
+      lightsAreOn = true;
+      lightOnTime = millis();
+      Serial.println("Dark + motion -> Lights ON for 5 seconds");
     }
   }
 
-  delay(200);
+  if (switchTriggered) {
+    switchTriggered = false;
+    Serial.println(">>> INTERRUPT: Switch changed");
+  }
+
+  if (!manualMode && lightsAreOn && millis() - lightOnTime >= onDuration) {
+    turnOffLights();
+    lightsAreOn = false;
+    Serial.println("Timer expired -> Lights OFF");
+  }
+
+  delay(300);
 }
 
 void motionISR() {
   motionDetected = true;
 }
 
+void switchISR() {
+  switchTriggered = true;
+}
+
 void turnOnLights() {
   digitalWrite(led1, HIGH);
   digitalWrite(led2, HIGH);
-  Serial.println("LED1 & LED2 = ON");
 }
 
 void turnOffLights() {
   digitalWrite(led1, LOW);
   digitalWrite(led2, LOW);
-  Serial.println("LED1 & LED2 = OFF");
+}
 }
