@@ -3,7 +3,7 @@ import RPi.GPIO as GPIO
  
 GPIO.setmode(GPIO.BCM)
  
-living = 18
+living = 17
 bathroom = 27
 closet = 22
  
