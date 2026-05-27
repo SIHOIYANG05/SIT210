@@ -1,0 +1,66 @@
+from gpiozero import Button, LED, TonalBuzzer
+from gpiozero.tones import Tone
+from signal import pause
+import paho.mqtt.client as mqtt
+
+slide_switch = Button(4, pull_up=True)
+push_button = Button(27, pull_up=True)
+
+alert_led = LED(22)
+room_buzzer = TonalBuzzer(23)
+
+mqtt_server = "broker.emqx.io"
+
+alert_topic = "SIT210/doorAlert"
+command_topic = "SIT210/doorCommand"
+
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected to MQTT")
+    client.subscribe(alert_topic)
+
+
+def on_message(client, userdata, msg):
+    message = msg.payload.decode()
+    print("MQTT alert:", message)
+
+    if "ALERT" in message:
+        alert_led.on()
+        room_buzzer.play(Tone("A4"))
+
+
+client = mqtt.Client()
+client.on_connect = on_connect
+client.on_message = on_message
+
+client.connect(mqtt_server, 1883, 60)
+client.loop_start()
+
+
+def arm_system():
+    client.publish(command_topic, "ARM")
+    print("System armed from Raspberry Pi")
+
+
+def disarm_system():
+    client.publish(command_topic, "DISARM")
+    alert_led.off()
+    room_buzzer.stop()
+    print("System disarmed from Raspberry Pi")
+
+
+def silence_alarm():
+    client.publish(command_topic, "SILENCE")
+    alert_led.off()
+    room_buzzer.stop()
+    print("Alarm silenced from Raspberry Pi")
+
+
+slide_switch.when_pressed = arm_system
+slide_switch.when_released = disarm_system
+
+push_button.when_pressed = silence_alarm
+
+print("Raspberry Pi elder-room control station running")
+
+pause()
