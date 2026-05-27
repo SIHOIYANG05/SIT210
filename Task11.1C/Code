@@ -1,0 +1,193 @@
+#include "arduino_secrets.h"
+
+#include <Wire.h>
+#include <BH1750.h>
+#include <WiFiNINA.h>
+#include <PubSubClient.h>
+
+char ssid[] = SECRET_SSID;
+char pass[] = SECRET_PASS;
+
+const char* mqttServer = "broker.emqx.io";
+const int mqttPort = 1883;
+
+const char* alertTopic = "SIT210/doorAlert";
+const char* commandTopic = "SIT210/doorCommand";
+
+const int doorPin = 2;
+const int pirPin = 3;
+const int ledPin = 5;
+const int buzzerPin = 6;
+
+BH1750 lightMeter;
+WiFiClient wifiClient;
+PubSubClient client(wifiClient);
+
+bool systemArmed = false;
+bool alarmLatched = false;
+bool alertSent = false;
+
+float darkLimit = 50.0;
+
+void setup()
+{
+  Serial.begin(9600);
+
+  pinMode(doorPin, INPUT_PULLUP);
+  pinMode(pirPin, INPUT);
+  pinMode(ledPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
+
+  digitalWrite(ledPin, LOW);
+  noTone(buzzerPin);
+
+  Wire.begin();
+
+  lightMeter.begin();
+
+  connectWiFi();
+
+  client.setServer(mqttServer, mqttPort);
+  client.setCallback(mqttCallback);
+
+  connectMQTT();
+
+  Serial.println("Arduino Door Node Started");
+}
+
+void loop()
+{
+  if (!client.connected())
+  {
+    connectMQTT();
+  }
+
+  client.loop();
+
+  int doorState = digitalRead(doorPin);
+  int pirState = digitalRead(pirPin);
+  float lux = lightMeter.readLightLevel();
+
+  Serial.print("Lux: ");
+  Serial.print(lux);
+  Serial.print(" | Armed: ");
+  Serial.print(systemArmed);
+  Serial.print(" | Door: ");
+  Serial.print(doorState);
+  Serial.print(" | PIR: ");
+  Serial.print(pirState);
+  Serial.print(" | Alarm: ");
+  Serial.println(alarmLatched);
+
+  bool alarmCondition =
+    systemArmed &&
+    lux < darkLimit &&
+    pirState == HIGH &&
+    doorState == HIGH;
+
+  if (alarmCondition && !alarmLatched)
+  {
+    alarmLatched = true;
+    alertSent = false;
+  }
+
+  if (alarmLatched)
+  {
+    digitalWrite(ledPin, HIGH);
+    tone(buzzerPin, 1000);
+
+    if (!alertSent)
+    {
+      client.publish(alertTopic, "ALERT: Door opened with motion in dark");
+      Serial.println("MQTT ALERT SENT");
+      alertSent = true;
+    }
+  }
+  else
+  {
+    digitalWrite(ledPin, LOW);
+    noTone(buzzerPin);
+  }
+
+  delay(200);
+}
+
+void mqttCallback(char* topic, byte* payload, unsigned int length)
+{
+  String message = "";
+
+  for (unsigned int i = 0; i < length; i++)
+  {
+    message += (char)payload[i];
+  }
+
+  Serial.print("Command received: ");
+  Serial.println(message);
+
+  if (message == "ARM")
+  {
+    systemArmed = true;
+    Serial.println("System armed");
+  }
+
+  if (message == "DISARM")
+  {
+    systemArmed = false;
+    alarmLatched = false;
+    alertSent = false;
+
+    digitalWrite(ledPin, LOW);
+    noTone(buzzerPin);
+
+    Serial.println("System disarmed");
+  }
+
+  if (message == "SILENCE")
+  {
+    alarmLatched = false;
+    alertSent = false;
+
+    digitalWrite(ledPin, LOW);
+    noTone(buzzerPin);
+
+    Serial.println("Alarm silenced");
+  }
+}
+
+void connectWiFi()
+{
+  Serial.print("Connecting to WiFi");
+
+  while (WiFi.begin(ssid, pass) != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(1000);
+  }
+
+  Serial.println();
+  Serial.println("WiFi connected");
+}
+
+void connectMQTT()
+{
+  while (!client.connected())
+  {
+    Serial.print("Connecting to MQTT... ");
+
+    String clientId = "ArduinoDoorNode-";
+    clientId += String(random(0xffff), HEX);
+
+    if (client.connect(clientId.c_str()))
+    {
+      Serial.println("connected");
+      client.subscribe(commandTopic);
+      client.publish(alertTopic, "Arduino door node online");
+    }
+    else
+    {
+      Serial.print("failed, rc=");
+      Serial.println(client.state());
+      delay(2000);
+    }
+  }
+}
